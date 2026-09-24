@@ -182,13 +182,15 @@ Jede minute (`60000 ms`) friert Core 0 die Zähler kurzzeitig ein, berechnet wic
    Ohne gemeinsamen GND führen Gleichtaktstörungen zu korrupten Datenpaketen.
 
 
-## Refernzen 
+## Referenzen 
 
-Das gesamte Projekt basiert auf der Arbeit von Markus Mauch und seinen Beschreibungen unter:
+1. Das gesamte Projekt basiert auf der Arbeit von Markus Mauch und seinen Beschreibungen unter:
 
 - [Markus Mauch's HESP documentation](https://markusmauch.github.io/proxon-hesp/)
 - [Documentation repository](https://github.com/markusmauch/proxon-hesp)
-   
+
+2. Der Text und der Code wurden zu ca 90% von Google erstellt
+
 
 ## Geltungsbereich
 
