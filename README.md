@@ -181,4 +181,24 @@ Jede minute (`60000 ms`) friert Core 0 die Zähler kurzzeitig ein, berechnet wic
      2. Überprüfe mit einem Multimeter, ob der GND des ESP32 eine stabile, niederohmige Verbindung zum GND der Proxon-Platine (X6-1) aufweist.
    Ohne gemeinsamen GND führen Gleichtaktstörungen zu korrupten Datenpaketen.
 
+
+## Refernzen 
+
+Das gesamte Projekt basiert auf der Arbeit von Markus Mauch und seinen Beschreibungen unter:
+
+- [Markus Mauch's HESP documentation](https://markusmauch.github.io/proxon-hesp/)
+- [Documentation repository](https://github.com/markusmauch/proxon-hesp)
    
+
+## Geltungsbereich
+
+Alle Angaben stammen aus Messungen an einer einzelnen Anlage, erhoben ohne Beteiligung
+des Herstellers. Nachbau auf eigene Verantwortung; Eingriffe können Gewährleistung oder
+Garantie berühren. Es werden keine geschützten Hersteller-Unterlagen wiedergegeben.
+
+## Lizenz & Marken
+
+Inhalte unter [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.de) (siehe
+[`LICENSE`](LICENSE)). Unabhängiges Projekt, **nicht** mit Zimmermann Lüftungs- und
+Wärmesysteme GmbH & Co. KG affiliiert; „PROXON", „Zimmermann" und weitere genannte Namen
+sind Marken ihrer jeweiligen Inhaber und werden beschreibend verwendet.
