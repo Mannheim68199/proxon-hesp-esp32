@@ -42,11 +42,11 @@ Vor dem Kompilieren müssen die Netzwerk- und MQTT-Zugangsdaten direkt im Quellc
 
 ```cpp
 // --- WLAN Parameter ---
-const char* ssid = "Kiwi";
+const char* ssid = "DEINE_SSID";
 const char* password = "DEIN_WLAN_PASSWORT";
 
 // --- MQTT Broker Parameter ---
-const char* mqtt_server = "192.168.31.25";
+const char* mqtt_server = "DEINE MQTT_SERVER_ID";
 const int   mqtt_port = 1883;
 ```
 
