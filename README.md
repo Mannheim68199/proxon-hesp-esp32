@@ -1,8 +1,9 @@
 # ESP32 Proxon X6 Bus-Gateway (HESP RS485 Sniffer)
 
-Dieses System implementiert ein hocheffizientes, galvanisch entkoppeltes Kommunikations-Gateway für den **HESP-Bus** (Proxon X6 Heizungs- und Lüftungsanlagen). Basierend auf einem **ESP32 Dev Module** liest (snifft) das System zyklische Bus-Telegramme via RS485, wertet diese in Echtzeit aus und stellt die Daten über **MQTT** sowie ein **Live-Webinterface (WebSockets)** bereit.
+Dieses System implementiert ein hocheffizientes, galvanisch entkoppeltes Kommunikations-Gateway für den **HESP-Bus** (Proxon P1 Heizungs- und Lüftungsanlagen). 
+Basierend auf einem **ESP32 Dev Module** liest (snifft) das System zyklische Bus-Telegramme via RS485, wertet diese in Echtzeit aus und stellt die Daten über **MQTT** sowie ein **Live-Webinterface (WebSockets)** bereit.
 
-Zusätzlich erlaubt die Firmware das gezielte **Injizieren von Steuerbefehlen (SET/Query)** exakt in einem kritischen Sende-Zeitfenster direkt auf den Bus, um Parameter der Lüftungsanlage zu verändern.
+Zusätzlich erlaubt die Firmware das gezielte **Injizieren von Steuerbefehlen (SET/Query)** exakt in einem kritischen Sende-Zeitfenster direkt auf den Bus, um Parameter der Lüftungsanlage zu verändern. ( was aber nicht funktioniert )
 
 ---
 
