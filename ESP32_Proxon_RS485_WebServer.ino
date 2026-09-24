@@ -18,9 +18,9 @@
 #include <ArduinoJson.h>
 
 // --- KONFIGURATION ---
-const char* ssid = "Kiwi";
-const char* password = "1234567890#lkjhgfdsa";
-const char* mqtt_server = "192.168.31.25";
+const char* ssid = "DEINE_SSID";
+const char* password = "DEIN_WLAN_PASSWORT";
+const char* mqtt_server = "DEINE_MQTT_SERVER_ID";
 const int   mqtt_port = 1883;
 const char* topic_raw = "rs485/sniffer/raw";   // Hierhin sendet der D1 mini
 const char* topic_send = "rs485/sniffer/send"; // Hierauf hört der D1 mini (HEX-String senden)
