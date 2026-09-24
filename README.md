@@ -12,7 +12,7 @@ Zusätzlich erlaubt die Firmware das gezielte **Injizieren von Steuerbefehlen (S
 Das System nutzt konsequent die **Dual-Core-Architektur** des ESP32, um zeitkritische Bus-Operationen vollständig von netzwerkbedingten Latenzen zu trennen:
 
 ### Ultrafast Binary Queues (Ringpuffer)
-Zur thread-sicheren Kopplung der beiden CPU-Kerne kommen zwei unabhängige, binäre Ringpuffer (`hespBinQueue` und `hespRespQueue`) mit einer festen Größe von `QUEUE_SIZE = 31` zum Einsatz. Core 1 legt die empfangenen Rohdaten oder Antworten blitzschnell binär im RAM ab und inkrementiert die Zeiger (`qIn` / `qRespIn`). Core 0 holt diese im Haupt-Thread asynchron ab (`qOut` / `qRespOut`), wandelt sie performant in HEX-Strings um und sendet sie ins Netzwerk.
+Zur thread-sicheren Kopplung der beiden CPU-Kerne kommen zwei unabhängige, binäre Ringpuffer (`hespBinQueue` und `hespRespQueue`) mit einer festen Größe von `QUEUE_SIZE = 31` zum Einsatz. Core 1 legt die empfangenen Rohdaten oder Antworten schnell binär im RAM ab und inkrementiert die Zeiger (`qIn` / `qRespIn`). Core 0 holt diese im Haupt-Thread asynchron ab (`qOut` / `qRespOut`), wandelt sie performant in HEX-Strings um und sendet sie ins Netzwerk.
 
 ---
 
