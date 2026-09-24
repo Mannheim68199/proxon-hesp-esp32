@@ -171,12 +171,16 @@ Jede minute (`60000 ms`) friert Core 0 die Zähler kurzzeitig ein, berechnet wic
 ## 🚀 Inbetriebnahme & Troubleshooting
 
 1. **Kompilierung**:
+   
      Stelle in der Arduino IDE sicher, dass das ESP32 Dev Module ausgewählt ist und der serielle Monitor auf 115200 Baud steht.
-2. **Diagnose beim Booten**:
+   
+3. **Diagnose beim Booten**:
+   
    Achte auf die Meldung >>> ERFOLG: RS485-Task erfolgreich auf Core 1 gestartet! <<<.
    Erscheint stattdessen ein Fehlercode, war der Heap-Speicher für den 8KB Task-Stack unzureichend.
    
-3. **Fehlersuche bei fehlendem Traffic**:
+5. **Fehlersuche bei fehlendem Traffic**:
+   
      1. Falls das Live-Log im Webinterface oder Terminal komplett leer bleibt, tausche die A- und B-Leitungen des RS485-Moduls (häufigste Ursache bei RS485-Inbetriebnahmen).
      2. Überprüfe mit einem Multimeter, ob der GND des ESP32 eine stabile, niederohmige Verbindung zum GND der Proxon-Platine (X6-1) aufweist.
    Ohne gemeinsamen GND führen Gleichtaktstörungen zu korrupten Datenpaketen.
