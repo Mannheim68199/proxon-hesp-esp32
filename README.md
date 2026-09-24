@@ -1,6 +1,6 @@
 # ESP32 Proxon P1 HESP-RS485 Sniffer to MQTT
 
-Dieses System implementiert ein hocheffizientes, galvanisch entkoppeltes Kommunikations-Gateway für den **HESP-Bus** (Proxon P1 Heizungs- und Lüftungsanlagen). 
+Dieses System implementiert ein effizientes Kommunikations-Gateway für den **HESP-Bus** (Proxon P1 Heizungs- und Lüftungsanlagen). 
 Basierend auf einem **ESP32 Dev Module** liest (snifft) das System zyklische Bus-Telegramme via RS485, wertet diese in Echtzeit aus und stellt die Daten über **MQTT** sowie ein **Live-Webinterface (WebSockets)** bereit.
 
 Zusätzlich erlaubt die Firmware das gezielte **Injizieren von Steuerbefehlen (SET/Query)** exakt in einem kritischen Sende-Zeitfenster direkt auf den Bus, um Parameter der Lüftungsanlage zu verändern. ( was aber (noch?) nicht funktioniert !!! )
