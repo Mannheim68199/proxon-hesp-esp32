@@ -193,7 +193,7 @@ Jede minute (`60000 ms`) friert Core 0 die Zähler kurzzeitig ein, berechnet wic
 - [Markus Mauch's HESP documentation](https://markusmauch.github.io/proxon-hesp/)
 - [Documentation repository](https://github.com/markusmauch/proxon-hesp)
 
-2. Der Text und der Code wurden zu ca 90% von Google erstellt
+2. Der Text und der Code wurden zu ca 95% von Google erstellt
 
 
 ## Geltungsbereich
