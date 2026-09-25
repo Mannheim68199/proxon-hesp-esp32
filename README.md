@@ -194,6 +194,8 @@ Jede minute (`60000 ms`) friert Core 0 die Zähler kurzzeitig ein, berechnet wic
 - [Documentation repository](https://github.com/markusmauch/proxon-hesp)
 
 2. Der Text und der Code wurden zu ca 95% von Google erstellt
+   
+3. Ein ähnliches Projekt mit Anbindung an Homeassistant ist unter [https://github.com/DNier/proxon-hesp-homeassistant] zu finden
 
 
 ## Geltungsbereich
