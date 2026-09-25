@@ -495,8 +495,8 @@ void rs485SnifferTask(void * parameter) {
   bool bereitsGesendetOderVetoInDiesemZyklus = false; // Verhindert Dauer-Trigger im selben Takt
 
 
-  // Variablen für das lesen der Antwort auf mein SET
-  const int SUB_BUFFER_SIZE = 64;
+  // Variablen für das Lesen der Antwort auf mein SET
+  const int SUB_BUFFER_SIZE = 128;  // vorher 64
   byte rxSubBuffer[SUB_BUFFER_SIZE];
   int subBufferIndex = 0;
   unsigned long subLastCharTime = 0;
