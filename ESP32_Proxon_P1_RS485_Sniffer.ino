@@ -83,18 +83,17 @@ unsigned int txLength = 0;
 volatile bool readyToSend = false;
 
 // lässt sich über MQTT send ändern
-unsigned int sendTimeBegin = 40;  // 35 msec - 50 msec time window to send own message
-unsigned int sendTimeEnd = 55;
+unsigned int sendTimeBegin = 30;  // 30 msec - 33 msec time window to send own message
+unsigned int sendTimeEnd = 33;
 unsigned int SET_REPEAT_TIME = 1800;  // Definiert die Zeit, die ein SET Befehl wiederholt werden soll
+unsigned long PACKET_TIMEOUT = 10;    // [ms] Stille signalisiert das Zyklus-Ende
+unsigned int  LONG_ANSWER_MIN = 64;   // #Zeichen Mindestlänge für eine "lange Antwort"
 
 unsigned int msgReadCounter = 0;               // Anzahl der Msg pro Minute;
 unsigned int msgWriteCounter = 0;              // Anzahl der Msg pro Minute;
 unsigned int msgSendCounter = 0;               // Anzahl der Msg pro Minute;
 unsigned int msgAnswerCounter = 0;             // Anzahl der eigenen Antworten pro Minute;
 unsigned long lastStatTime = 0;                // Zeit in msec zum Zählen der Msg pro Minute;
-
-const unsigned long PACKET_TIMEOUT = 12;    // 12ms Stille signalisiert das Zyklus-Ende
-const unsigned int  LONG_ANSWER_MIN = 64;   // Mindestlänge für eine "lange Antwort"
 
 // Task-Handle für den RS485-Task auf Core 1
 TaskHandle_t RS485TaskHandle = NULL;
@@ -226,11 +225,25 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       logMsg("SET_REPEAT_TIME per JSON geändert: "); logMsg(String(newVal), true);
     }
 
+    if (doc.containsKey("PACKET_TIMEOUT")) {
+      unsigned int newVal = doc["PACKET_TIMEOUT"];
+      PACKET_TIMEOUT = newVal;
+      logMsg("PACKET_TIMEOUT per JSON geändert: "); logMsg(String(newVal), true);
+    }
+
+    if (doc.containsKey("LONG_ANSWER_MIN")) {
+      unsigned int newVal = doc["LONG_ANSWER_MIN"];
+      LONG_ANSWER_MIN = newVal;
+      logMsg("LONG_ANSWER_MIN per JSON geändert: "); logMsg(String(newVal), true);
+    }
+      
     if (doc.containsKey("setDefaultValues")) {
       sendTimeBegin = 35;
       sendTimeEnd = 50;
       SET_REPEAT_TIME = 1500;
-      logMsg("defaultWert per JSON geändert: sendTimeBegin=35, sendTimeEnd=55, SET_REPEAT_TIME=1500", true);
+      PACKET_TIMEOUT = 10;
+      LONG_ANSWER_MIN = 64;
+      logMsg("defaultWert per JSON geändert: sendTimeBegin=30, sendTimeEnd=33, SET_REPEAT_TIME=1500, PACKET_TIMEOUT=10, LONG_ANSWER_MIN=64", true);
     }
   } else {
     txLength = 0;
@@ -512,7 +525,7 @@ void rs485SnifferTask(void * parameter) {
       byte incomingByte = Serial2.read();
       
       // Wenn der Bus vorher still war (>10ms), beginnt ein neuer 100ms-Zyklus!
-      if (bufferIndex == 0 && (millis() - lastCharTime > 10)) {
+      if (bufferIndex == 0 && (millis() - lastCharTime > PACKET_TIMEOUT)) {
         cycleStartTime = millis(); // Startzeitpunkt des 100ms-Takts merken
         timerArmed = true;         // Sende-Timer scharf schalten
         bereitsGesendetOderVetoInDiesemZyklus = false; // Neuen Zyklus freigeben
@@ -541,8 +554,8 @@ void rs485SnifferTask(void * parameter) {
     // =======================================================================
     // SCHRITT 3: NORMALES SAMMEL-ENDE (Gesteuert durch das PACKET_TIMEOUT)
     // =======================================================================
-    // Ein Timeout von 12ms trifft exakt die 20ms-Lücke am Ende des großen Pakets 
-    // und trennt es perfekt ab, bevor nach 100ms der nächste Zyklus startet!
+    // Ein Timeout von 10ms (PACKET_TIMEOUT) oder das Zyklus-Ende (1 msec vorher) beenden den Lese-Prozess
+    // bevor nach 100ms der nächste Zyklus startet!
     if (!warteAufAntwort && bufferIndex > 0 && ( (millis() - lastCharTime > PACKET_TIMEOUT) || (millis() - cycleStartTime > 98 )) ) {
 
       // Kopieren in die Queue für Core 0 (MQTT)
@@ -560,16 +573,16 @@ void rs485SnifferTask(void * parameter) {
       bufferIndex = 0;    
     }
 
-    // =======================================================================
-    // SCHRITT 4: SENDEN im Zeitfenster von sendTimeBegin bis sendTimeEnd ( 35-50 msec ) NACH ZYKLUS-START
-    // =======================================================================
+    // ==============================================================================================================================================
+    // SCHRITT 4: SENDEN im Zeitfenster von sendTimeBegin bis sendTimeEnd ( 30-33 msec ) NACH ZYKLUS-START, wenn frei ist
+    // ==============================================================================================================================================
     if (timerArmed && !bereitsGesendetOderVetoInDiesemZyklus && (millis() - cycleStartTime >= sendTimeBegin)  && (millis() - cycleStartTime < sendTimeEnd)) {
       
       if (readyToSend) {
         // Typ bestimmen (0x1 = SET, 0x0 = QUERY)
         byte txType = txBuffer[0] & 0x0F;
 
-        // ZEITSTEUERUNG-CHECK: Wenn das SET bereits seit mehr als 1500 ms feuert, jetzt stoppen!
+        // ZEITSTEUERUNG-CHECK: Wenn das SET bereits seit mehr als 1500 ms (SET_REPEAT_TIME) feuert, jetzt stoppen!
         if (txType == 1 && injektionLaeuft && (millis() - injektionStartZeit >= SET_REPEAT_TIME)) {
           readyToSend = false;
           injektionLaeuft = false;
@@ -590,12 +603,9 @@ void rs485SnifferTask(void * parameter) {
           // Ein RS485-Startbit zieht den RX-Pin auf LOW (0). 
           // Wenn der Pin LOW ist ODER sich doch schon ein Byte in die UART verirrt hat:
           if (digitalRead(RX2_PIN) == LOW || Serial2.available() > 0) {
-            
             logMsg(">> VETO: Senden blockiert – Dieser Zyklus gehört der LANGEN Antwort!", true);
             bereitsGesendetOderVetoInDiesemZyklus = true; // Sperren für diesen 100ms-Takt
-   
           } else {  // BUs ist frei -> Senden!
-           
             if (txType == 1 ) {
               logMsg("[Injektion SET] ");
             } else {
