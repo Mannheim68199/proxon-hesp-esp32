@@ -543,7 +543,7 @@ void rs485SnifferTask(void * parameter) {
     // =======================================================================
     // Ein Timeout von 12ms trifft exakt die 20ms-Lücke am Ende des großen Pakets 
     // und trennt es perfekt ab, bevor nach 100ms der nächste Zyklus startet!
-    if (!warteAufAntwort && bufferIndex > 0 && ( (millis() - lastCharTime > PACKET_TIMEOUT) || (millis() - cycleStartTime > 95 )) ) {
+    if (!warteAufAntwort && bufferIndex > 0 && ( (millis() - lastCharTime > PACKET_TIMEOUT) || (millis() - cycleStartTime > 98 )) ) {
 
       // Kopieren in die Queue für Core 0 (MQTT)
       int nextIn = (qIn + 1) % QUEUE_SIZE;
