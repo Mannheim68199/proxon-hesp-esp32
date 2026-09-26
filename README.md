@@ -3,7 +3,7 @@
 Dieses System implementiert ein effizientes Kommunikations-Gateway für den **HESP-Bus** (Proxon P1 Heizungs- und Lüftungsanlagen). 
 Basierend auf einem **ESP32 Dev Module** liest (snifft) das System zyklische Bus-Telegramme (Frage+Antwort) via RS485, wertet diese in Echtzeit aus und stellt die Daten über **MQTT** sowie ein **Live-Webinterface (WebSockets)** bereit.
 
-Zusätzlich erlaubt die Firmware das gezielte **Injizieren von Steuerbefehlen (SET/Query)** exakt in einem "stillen" Sende-Zeitfenster direkt auf den Bus, um Parameter der Lüftungsanlage abzufragen oder auch zu verändern. ( was aber (noch?) nicht funktioniert !!! )
+Zusätzlich erlaubt die Firmware das gezielte **Injizieren von Steuerbefehlen (SET/Query)** exakt in einem "stillen" Sende-Zeitfenster direkt auf den Bus, um Parameter der Lüftungsanlage abzufragen oder auch zu verändern. ( was aber (noch?) nicht funktioniert !!! ==>  Vielleicht muß man das Bedienungspanel ausbauen, damit der "alte" Wert nicht immer wieder davon überschrieben wird )
 
 Ich nutze eine MariaDB zum Speichern der Daten und Node-Red zum Darstellen der Parameter und deren zeitlichen Verlauf.
 Wie man mit den Daten in MQTT weiter arbeitet, ist aber nicht Thema dieses Projektes. 
