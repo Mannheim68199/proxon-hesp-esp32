@@ -5,6 +5,8 @@ Basierend auf einem **ESP32 Dev Module** liest (snifft) das System zyklische Bus
 
 Zusätzlich erlaubt die Firmware das gezielte **Injizieren von Steuerbefehlen (SET/Query)** exakt in einem "stillen" Sende-Zeitfenster direkt auf den Bus, um Parameter der Lüftungsanlage abzufragen oder auch zu verändern. ( was aber (noch?) nicht funktioniert !!! )
 
+Wie man mit den Daten in MQTT weiter arbeitet, ist nicht Thema dieses Projektes. Ich nutze eine MariaDB zum Speichern der Daten und Node-Red zum Darstellen der Parameter und deren zeitlichen Verlauf.
+
 ---
 
 ## 🗺️ Systemarchitektur & Funktionsweise
