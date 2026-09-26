@@ -79,9 +79,11 @@ Beginnt die Nachricht mit einer geschweiften Klammer `{` (ASCII 123), wird sie a
 
 ```json
 {
-  "sendTimeBegin": 40,
-  "sendTimeEnd": 55,
-  "SET_REPEAT_TIME": 1800
+  "sendTimeBegin": 40,       // msec
+  "sendTimeEnd": 55,         // msec
+  "SET_REPEAT_TIME": 1800,   // msec
+  "PACKET_TIMEOUT": 10,      // msec
+  "LONG_ANSWER_MIN": 64      // bytes
 }
 ```
 
