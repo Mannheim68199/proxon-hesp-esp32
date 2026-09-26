@@ -163,7 +163,7 @@ Jede minute (`60000 ms`) friert Core 0 die Zähler kurzzeitig ein, berechnet wic
 ========================================
 ```
 
-* **Bus-Frequenz:** Errechnet die durchschnittliche Paketanzahl pro Sekunde (erwartet sind ca. 10 bis 20 Hz, je nach Anlagenkonfiguration).
+* **Bus-Frequenz:** Errechnet die durchschnittliche Paketanzahl pro Sekunde (erwartet sind ca. 10 Hz ).
 * **Bus-Qualität:** Setzt die erfolgreich per MQTT abgesetzten Pakete in Relation zu den gelesenen Telegrammen. Ein Wert von 100 % signalisiert eine fehlerfreie, latenzfreie Verarbeitung auf Core 0 ohne Queue-Überläufe.
 
 ---
