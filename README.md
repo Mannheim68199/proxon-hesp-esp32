@@ -89,7 +89,9 @@ Beginnt die Nachricht mit einer geschweiften Klammer `{` (ASCII 123), wird sie a
 
 * **`sendTimeBegin`** / **`sendTimeEnd`**: Definiert das erlaubte Sendezeitfenster in Millisekunden nach der erkannten Bus-Stille.
 * **`SET_REPEAT_TIME`**: Bestimmt die Dauer in Millisekunden, über die ein SET-Befehl zyklisch wiederholt an den Bus gefeuert wird.
-* **`setDefaultValues`**: Übergibt man diesen Key im JSON, setzt das Gateway alle Timing-Variablen sofort auf die sicheren Standardwerte zurück (`35ms` / `50ms` / `1500ms`).
+* **`PACKET_TIMEOUT`**: definiert die Bus-Stille in [msec]
+* **`LONG_ANSWER_MIN`**: definiert ab welcher byte-Länge eine Antwort lang ist - und eine eigene QUERY im Zyklus verhindert
+* **`setDefaultValues`**: Übergibt man diesen Key im JSON, setzt das Gateway alle Timing-Variablen sofort auf die sicheren Standardwerte zurück (`30ms` / `33ms` / `1500ms` / `10` / `64` ).
 
 ---
 
