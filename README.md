@@ -90,7 +90,7 @@ Beginnt die Nachricht mit einer geschweiften Klammer `{` (ASCII 123), wird sie a
 * **`sendTimeBegin`** / **`sendTimeEnd`**: Definiert das erlaubte Sendezeitfenster in Millisekunden nach der erkannten Bus-Stille.
 * **`SET_REPEAT_TIME`**: Bestimmt die Dauer in Millisekunden, über die ein SET-Befehl zyklisch wiederholt an den Bus gefeuert wird.
 * **`PACKET_TIMEOUT`**: definiert die Bus-Stille in [msec]
-* **`LONG_ANSWER_MIN`**: definiert ab welcher byte-Länge eine Antwort lang ist - und eine eigene QUERY im Zyklus verhindert
+* **`LONG_ANSWER_MIN`**: definiert ab welcher byte-Länge eine Antwort lang ist - und eine eigene QUERY/SET im Zyklus verhindert
 * **`setDefaultValues`**: Übergibt man diesen Key im JSON, setzt das Gateway alle Timing-Variablen sofort auf die sicheren Standardwerte zurück (`30ms` / `33ms` / `1500ms` / `10` / `64` ).
 
 ---
@@ -122,11 +122,11 @@ Bus-Aktivität (Master/Slave) ===[ DATA FRAME ]===|
                                         Stille detektiert (>10ms Initial / >12ms PACKET_TIMEOUT)
                                                  |
                                                  v
-                                        Sende-Fenster öffnet (z.B. +35ms / sendTimeBegin)
+                                        Sende-Fenster öffnet (z.B. +30ms / sendTimeBegin)
                                                  |---> [COLLISION / VETO CHECK via digitalRead]
                                                  |---> [EIGENES PARAMETER-SET INJIZIEREN]
                                                  v
-                                        Sende-Fenster schließt (z.B. +50ms / sendTimeEnd)
+                                        Sende-Fenster schließt (z.B. +33ms / sendTimeEnd)
 ```
 
 ### Der Bus-Zyklus im Detail
@@ -134,7 +134,7 @@ Bus-Aktivität (Master/Slave) ===[ DATA FRAME ]===|
 1. **Schritt 1: Starr Bus-Empfang & Zyklus-Erkennung**
    Der Task überwacht `Serial2`. Erkennt er nach einer Bus-Ruhepause von mehr als `10 ms` das erste eintreffende Byte, speichert er den exakten Zeitstempel in `cycleStartTime` und schaltet den Sende-Timer scharf (`timerArmed = true`).
 2. **Schritt 2: Normales Sammel-Ende**
-   Verstreichen nach dem letzten Byte mehr als `PACKET_TIMEOUT` (12 ms) oder überschreitet die Zyklusdauer `95 ms`, gilt das Telegramm als beendet. Es wird atomar in den Ringpuffer `hespBinQueue` kopiert und für den MQTT-Versand auf Core 0 freigegeben.
+   Verstreichen nach dem letzten Byte mehr als `PACKET_TIMEOUT` (10 ms) oder überschreitet die Zyklusdauer `98 ms`, gilt das Telegramm als beendet. Es wird atomar in den Ringpuffer `hespBinQueue` kopiert und für den MQTT-Versand auf Core 0 freigegeben.
 3. **Schritt 3: Kollisionsschutz & Veto-Logik**
    Bevor das Gateway im Zeitfenster (`sendTimeBegin` bis `sendTimeEnd`) Daten sendet, wird ein hardwarenaher **Belegungs-Check** durchgeführt:
    ```cpp
@@ -167,7 +167,7 @@ Jede minute (`60000 ms`) friert Core 0 die Zähler kurzzeitig ein, berechnet wic
 ========================================
 ```
 
-* **Bus-Frequenz:** Errechnet die durchschnittliche Paketanzahl pro Sekunde (erwartet sind ca. 10 Hz ).
+* **Bus-Frequenz:** Errechnet die durchschnittliche Paketanzahl pro Sekunde (Erwartungswert: 10 Hz ).
 * **Bus-Qualität:** Setzt die erfolgreich per MQTT abgesetzten Pakete in Relation zu den gelesenen Telegrammen. Ein Wert von 100 % signalisiert eine fehlerfreie, latenzfreie Verarbeitung auf Core 0 ohne Queue-Überläufe.
 
 ---
