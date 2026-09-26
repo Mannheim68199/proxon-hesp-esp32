@@ -86,7 +86,7 @@ volatile bool readyToSend = false;
 unsigned int sendTimeBegin = 30;      // 30 msec - 33 msec time window to send own message
 unsigned int sendTimeEnd = 33;
 unsigned int SET_REPEAT_TIME = 1800;  // Definiert die Zeit in msec, die ein SET Befehl wiederholt werden soll
-unsigned long PACKET_TIMEOUT = 10;    // [ms] Stille signalisiert das Zyklus-Ende
+unsigned long PACKET_TIMEOUT = 12;    // [ms] Stille signalisiert das Zyklus-Ende
 unsigned int  LONG_ANSWER_MIN = 64;   // #Zeichen Mindestlänge für eine "lange Antwort"
 
 unsigned int msgReadCounter = 0;               // Anzahl der Msg pro Minute;
@@ -241,9 +241,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       sendTimeBegin = 35;
       sendTimeEnd = 50;
       SET_REPEAT_TIME = 1500;
-      PACKET_TIMEOUT = 10;
+      PACKET_TIMEOUT = 12;
       LONG_ANSWER_MIN = 64;
-      logMsg("defaultWert per JSON geändert: sendTimeBegin=30, sendTimeEnd=33, SET_REPEAT_TIME=1500, PACKET_TIMEOUT=10, LONG_ANSWER_MIN=64", true);
+      logMsg("defaultWert per JSON geändert: sendTimeBegin=30, sendTimeEnd=33, SET_REPEAT_TIME=1500, PACKET_TIMEOUT=12, LONG_ANSWER_MIN=64", true);
     }
   } else {
     txLength = 0;
@@ -524,7 +524,7 @@ void rs485SnifferTask(void * parameter) {
     while (Serial2.available()  && !warteAufAntwort) {
       byte incomingByte = Serial2.read();
       
-      // Wenn der Bus vorher still war (>10ms), beginnt ein neuer 100ms-Zyklus!
+      // Wenn der Bus vorher still war (>12ms), beginnt ein neuer 100ms-Zyklus!
       if (bufferIndex == 0 && (millis() - lastCharTime > PACKET_TIMEOUT)) {
         cycleStartTime = millis(); // Startzeitpunkt des 100ms-Takts merken
         timerArmed = true;         // Sende-Timer scharf schalten
@@ -554,7 +554,7 @@ void rs485SnifferTask(void * parameter) {
     // =======================================================================
     // SCHRITT 3: NORMALES SAMMEL-ENDE (Gesteuert durch das PACKET_TIMEOUT)
     // =======================================================================
-    // Ein Timeout von 10ms (PACKET_TIMEOUT) oder das Zyklus-Ende (1 msec vorher) beenden den Lese-Prozess
+    // Ein Timeout von 12ms (PACKET_TIMEOUT) oder das Zyklus-Ende (1 msec vorher) beenden den Lese-Prozess
     // bevor nach 100ms der nächste Zyklus startet!
     if (!warteAufAntwort && bufferIndex > 0 && ( (millis() - lastCharTime > PACKET_TIMEOUT) || (millis() - cycleStartTime > 98 )) ) {
 
