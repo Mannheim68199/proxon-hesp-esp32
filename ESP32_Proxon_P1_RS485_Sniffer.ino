@@ -83,9 +83,9 @@ unsigned int txLength = 0;
 volatile bool readyToSend = false;
 
 // lässt sich über MQTT send ändern
-unsigned int sendTimeBegin = 30;  // 30 msec - 33 msec time window to send own message
+unsigned int sendTimeBegin = 30;      // 30 msec - 33 msec time window to send own message
 unsigned int sendTimeEnd = 33;
-unsigned int SET_REPEAT_TIME = 1800;  // Definiert die Zeit, die ein SET Befehl wiederholt werden soll
+unsigned int SET_REPEAT_TIME = 1800;  // Definiert die Zeit in msec, die ein SET Befehl wiederholt werden soll
 unsigned long PACKET_TIMEOUT = 10;    // [ms] Stille signalisiert das Zyklus-Ende
 unsigned int  LONG_ANSWER_MIN = 64;   // #Zeichen Mindestlänge für eine "lange Antwort"
 
