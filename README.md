@@ -91,7 +91,7 @@ Beginnt die Nachricht mit einer geschweiften Klammer `{` (ASCII 123), wird sie a
 * **`SET_REPEAT_TIME`**: Bestimmt die Dauer in Millisekunden, über die ein SET-Befehl zyklisch wiederholt an den Bus gefeuert wird.
 * **`PACKET_TIMEOUT`**: definiert die Bus-Stille in [msec], ein Wert >= 12msec führt dazu, dass Frage und Antwort in einem Zyklus als HEX-String gelesen werden, Werte < 12msec lösen Frage und Antwort auf
 *     (dadurch gehen wohl auch Werte verloren, denn die BUS Frequenz in der Statistik geht nicht auf exakt 20 Hz sondern auf ca 19,6 Hz )
-* **`LONG_ANSWER_MIN`**: definiert ab welcher byte-Länge eine Antwort lang ist - und eine eigene QUERY/SET im Zyklus verhindert
+* **`LONG_ANSWER_MIN`**: definiert ab welcher byte-Länge eine Antwort *lang* ist - und eine eigene QUERY/SET im Zyklus verhindert
 * **`setDefaultValues`**: Übergibt man diesen Key im JSON, setzt das Gateway alle Timing-Variablen sofort auf die sicheren Standardwerte zurück (`30ms` / `33ms` / `1500ms` / `12` / `64` ).
 
 ---
