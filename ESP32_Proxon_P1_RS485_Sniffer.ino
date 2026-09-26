@@ -80,20 +80,22 @@ bool injektionLaeuft = false;         // Status, ob die Stoppuhr gerade aktiv is
 // Sende-Variablen
 byte txBuffer[BUFFER_SIZE];
 unsigned int txLength = 0;
-volatile bool readyToSend = false;
+volatile bool sendRequest = false;    // Flag zeigt an, daß eine neue Sendenachricht eingegangen ist ( warten auf eine periodische Nachricht mit gleicher DP )
+volatile bool readyToSend = false;    // Flag zeigt an, daß die Sendenachricht gesendet werden kann
 
 // lässt sich über MQTT send ändern
-unsigned int sendTimeBegin = 30;      // 30 msec - 33 msec time window to send own message
-unsigned int sendTimeEnd = 33;
-unsigned int SET_REPEAT_TIME = 1800;  // Definiert die Zeit in msec, die ein SET Befehl wiederholt werden soll
-unsigned long PACKET_TIMEOUT = 12;    // [ms] Stille signalisiert das Zyklus-Ende
-unsigned int  LONG_ANSWER_MIN = 64;   // #Zeichen Mindestlänge für eine "lange Antwort"
+unsigned int  sendTimeBegin = 30;               // 30 msec - 33 msec time window to send own message
+unsigned int  sendTimeEnd = 33;
+unsigned int  SET_REPEAT_TIME = 1800;           // Definiert die Zeit, die ein SET Befehl wiederholt werden soll
+unsigned long PACKET_TIMEOUT = 12;              // [ms] Stille signalisiert das Zyklus-Ende
+unsigned int  LONG_ANSWER_MIN = 64;             // #Zeichen Mindestlänge für eine "lange Antwort"
+unsigned int  SEND_AFTER_MATCHING_DP = 1;       // Versuch:  Flag zum Starten des Sendens ab dem gleichen Datenpunkt ( Werte:  0: nein  1: ja  )
 
-unsigned int msgReadCounter = 0;               // Anzahl der Msg pro Minute;
-unsigned int msgWriteCounter = 0;              // Anzahl der Msg pro Minute;
-unsigned int msgSendCounter = 0;               // Anzahl der Msg pro Minute;
-unsigned int msgAnswerCounter = 0;             // Anzahl der eigenen Antworten pro Minute;
-unsigned long lastStatTime = 0;                // Zeit in msec zum Zählen der Msg pro Minute;
+unsigned int msgReadCounter = 0;                // Anzahl der Msg pro Minute;
+unsigned int msgWriteCounter = 0;               // Anzahl der Msg pro Minute;
+unsigned int msgSendCounter = 0;                // Anzahl der Msg pro Minute;
+unsigned int msgAnswerCounter = 0;              // Anzahl der eigenen Antworten pro Minute;
+unsigned long lastStatTime = 0;                 // Zeit in msec zum Zählen der Msg pro Minute;
 
 // Task-Handle für den RS485-Task auf Core 1
 TaskHandle_t RS485TaskHandle = NULL;
@@ -189,7 +191,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (length == 0) return;
   
   // Falls die loop() noch sendet, neuen Befehl verwerfen
-  if (readyToSend) return; 
+  if (sendRequest) return; 
 
   // Ein JSON beginnt typischerweise mit '{' (Dezimalwert 123 im ASCII-Code)
   if (payload[0] == '{') {
@@ -236,14 +238,21 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
       LONG_ANSWER_MIN = newVal;
       logMsg("LONG_ANSWER_MIN per JSON geändert: "); logMsg(String(newVal), true);
     }
-      
+
+    if (doc.containsKey("SEND_AFTER_MATCHING_DP")) {
+      unsigned int newVal = doc["SEND_AFTER_MATCHING_DP"];
+      LONG_ANSWER_MIN = newVal;
+      logMsg("SEND_AFTER_MATCHING_DP per JSON geändert: "); logMsg(String(newVal), true);
+    }
+    
     if (doc.containsKey("setDefaultValues")) {
-      sendTimeBegin = 35;
-      sendTimeEnd = 50;
-      SET_REPEAT_TIME = 1500;
-      PACKET_TIMEOUT = 12;
-      LONG_ANSWER_MIN = 64;
-      logMsg("defaultWert per JSON geändert: sendTimeBegin=30, sendTimeEnd=33, SET_REPEAT_TIME=1500, PACKET_TIMEOUT=12, LONG_ANSWER_MIN=64", true);
+      sendTimeBegin = 30;       // msec
+      sendTimeEnd = 33;         // msec
+      SET_REPEAT_TIME = 1500;   // msec
+      PACKET_TIMEOUT = 12;      // msec
+      LONG_ANSWER_MIN = 64;     // bytes
+      SEND_AFTER_MATCHING_DP = 1;  // 0 oder 1
+      logMsg("defaultWert per JSON geändert: sendTimeBegin=30, sendTimeEnd=33, SET_REPEAT_TIME=1500, PACKET_TIMEOUT=12, LONG_ANSWER_MIN=64, SEND_AFTER_MATCHING_DP=1", true);
     }
   } else {
     txLength = 0;
@@ -257,7 +266,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     }
   
     // Signal an die loop() senden, dass gesendet werden soll
-    readyToSend = true;   // Signal an Core 1: Bitte in der nächsten Pause senden!
+    sendRequest = true;   // Signal an Core 1: Bitte in der nächsten Pause senden!
   }
 }
 
@@ -499,8 +508,10 @@ void loop() {
 void rs485SnifferTask(void * parameter) {
   const int LOCAL_BUFFER_SIZE = 256;
   byte rxBuffer[LOCAL_BUFFER_SIZE];
+  byte lastHeaderBuffer[16];            // enthält den Header der letzten Nachricht
   int bufferIndex = 0;
   unsigned long lastCharTime = 0;
+  bool warteAufLastDPFrame = false; // SET Anfrage, soll im Frame mit derselben DP nach der Antwort gestartet werden 
   
   // Variablen für die zeitgesteuerte 60ms-Injektion
   unsigned long cycleStartTime = 0;
@@ -508,8 +519,8 @@ void rs485SnifferTask(void * parameter) {
   bool bereitsGesendetOderVetoInDiesemZyklus = false; // Verhindert Dauer-Trigger im selben Takt
 
 
-  // Variablen für das Lesen der Antwort auf mein SET
-  const int SUB_BUFFER_SIZE = 128;  // vorher 64
+  // Variablen für das lesen der Antwort auf mein SET
+  const int SUB_BUFFER_SIZE = 128;   // vorher 64
   byte rxSubBuffer[SUB_BUFFER_SIZE];
   int subBufferIndex = 0;
   unsigned long subLastCharTime = 0;
@@ -568,7 +579,7 @@ void rs485SnifferTask(void * parameter) {
         qIn = nextIn;
         msgReadCounter++;
       }
-      
+
       // Zustand für den normalen Hauptpuffer nullen
       bufferIndex = 0;    
     }
@@ -577,12 +588,19 @@ void rs485SnifferTask(void * parameter) {
     // SCHRITT 4: SENDEN im Zeitfenster von sendTimeBegin bis sendTimeEnd ( 30-33 msec ) NACH ZYKLUS-START, wenn frei ist
     // ==============================================================================================================================================
     if (timerArmed && !bereitsGesendetOderVetoInDiesemZyklus && (millis() - cycleStartTime >= sendTimeBegin)  && (millis() - cycleStartTime < sendTimeEnd)) {
+
+      if (sendRequest && bufferIndex > 4) {
+          if (SEND_AFTER_MATCHING_DP == 1 || (txBuffer[4] == rxBuffer[4] && txBuffer[3] == rxBuffer[3])) {
+            readyToSend = true;
+            sendRequest = false;
+          }
+      }
       
       if (readyToSend) {
         // Typ bestimmen (0x1 = SET, 0x0 = QUERY)
         byte txType = txBuffer[0] & 0x0F;
 
-        // ZEITSTEUERUNG-CHECK: Wenn das SET bereits seit mehr als 1500 ms (SET_REPEAT_TIME) feuert, jetzt stoppen!
+        // ZEITSTEUERUNG-CHECK: Wenn das SET bereits seit mehr als 1500 ms feuert, jetzt stoppen!
         if (txType == 1 && injektionLaeuft && (millis() - injektionStartZeit >= SET_REPEAT_TIME)) {
           readyToSend = false;
           injektionLaeuft = false;
@@ -660,10 +678,10 @@ void rs485SnifferTask(void * parameter) {
       // Kriterien für das Ende der Antwort:
       // A: Es kamen Daten und nun ist seit 4ms Ruhe (Antwort vollständig erhalten)
       // B: Es kamen GAR KEINE Daten und der Bus steht seit 15ms still (Gegenstelle antwortet nicht)
-      bool antwortErfolgreich = (subBufferIndex > 0 && (millis() - subLastCharTime > 4));
+      bool antwortErfolgreich = (subBufferIndex > 0 && (millis() - subLastCharTime > 2));
       bool antwortTimeout     = (subBufferIndex == 0 && (millis() - subLastCharTime > 20));
       
-      if (antwortErfolgreich || antwortTimeout || (millis() - cycleStartTime > 95)) {
+      if (antwortErfolgreich || antwortTimeout || (millis() - cycleStartTime > 98)) {
         
         if (subBufferIndex > 0) {
           // In die Queue für Core 0 (MQTT / Parser) schieben
@@ -807,4 +825,3 @@ void printLocalTime() {
   // Formatiert die Ausgabe: DD.MM.YYYY HH:MM:SS
   logMsg(zeitAlsString, true);
 }
-
