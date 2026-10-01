@@ -53,3 +53,7 @@ Folgende Sequenz wurde nach einem Neustart der Heizung Proxon P1 ermittelt:
 
 
 Eine Sequenz dauert also genau 4,8 Sekunden.
+Dieser Test wurde 2 mal durchgeführt, wobei alle gesendeten Datensätze in der Datenbank ohne Filterung gespeichert wurden.
+Die Speicherung erfolgte ca 48 Sekunden lang, so dass jeder DP genau 10 mal gespeichert wurde.
+Die angegebenen Wertebereiche in der Tabelle oben, beziehen sich aber auf die gesamten bisher gespeicherten Daten.
+Außer in der Betriebsart und der ZielTemperatur ( 0227) wurde am BDE nichts verändert.
