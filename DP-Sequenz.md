@@ -1,4 +1,4 @@
-Folgende Sequenz wurde nach einem Neustart der Heizung Proxon P1 ermittelt:
+Folgende Sequenz wurde nach einem Neustart der Wärmepumpe Proxon P1 ermittelt:
 
 |ID|DP| Typ | byteTyp (11,22) | Wertebereich | Kommentar
 | :--- | :--- | :--- | :--- | :--- | :--- |
