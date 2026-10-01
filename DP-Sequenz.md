@@ -50,3 +50,6 @@ Folgende Sequenz wurde nach einem Neustart der Heizung Proxon P1 ermittelt:
 | 46 | 051e | 10/22 | float32 | = 0 | |
 | 47 | 0191 | 11/e3 | uint16 | = 0| ? |
 | 48 | 0194 | 10/e2 | uint16 | = 5 | ? |
+
+
+Eine Sequenz dauert also genau 4,8 Sekunden.
