@@ -11,7 +11,7 @@ Folgende Sequenz wurde nach einem Neustart der Heizung Proxon P1 ermittelt:
 | 022c | 11/23 | uint16 | [0,1] | |
 | 006c | 10/22 | uint32 | 8 Bits | |
 | 0208 | 10/22 | uint32 | 32 Bits | |
-| 01f8 | 11/23 | float32 ? | len = 0 | |
+| 01f8 | 11/23 | float32 | = 0 | BDE Status Word ?|
 | 00e1 | 11/23 | uint16 | [0,1,2,3,4] | Lüfterstufe |
 | 03b7 | 10/22 | uint16 | Arr10[10 Temp.]/10 | T1-T15 |
 | 00c9 | 10/22 | float32 | Arr2[1500,2700] | IST Drehzahl (Zuluft?) |
