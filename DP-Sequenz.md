@@ -1,6 +1,6 @@
 Folgende Sequenz wurde nach einem Neustart der Heizung Proxon P1 ermittelt:
 
-|DP| Typ | byteTyp (11,23) | Wertebereich | Kommentar
+|DP| Typ | byteTyp (11,22) | Wertebereich | Kommentar
 | :--- | :--- | :--- | :--- | :--- |
 | 032e | 10/22 | datetime | Datum/Zeit | Gerätezeit |
 | 0226 | 11/23 | float32 | (20-> 23,6 ) | IST Temperatur|
