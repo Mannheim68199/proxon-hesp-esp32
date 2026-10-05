@@ -35,11 +35,11 @@ Folgende Sequenz wurde nach einem Neustart der Wärmepumpe Proxon P1 ermittelt:
 | 31 | 01f5 | 10/22 | uint32 | = 67 | |
 | 32 | 00d2 | 10/22 | float32 | [31,50,70,100] | Lüfterstufen Zuluft (siehe Screenshot)|
 | 33 | 00d3 | 10/22 | float32 | [25,50,70,100] | Lüfterstufen Abluft (siehe Screenshot)|
-| 34 | 0110 | 10/22 | float32 | = 3 | |
+| 34 | 0110 | 10/22 | float32 | = 3 | Kühlschwelle °C  (siehe Screenshot)|
 | 35 | 0105 | 10/22 | float32 | = 0 | |
 | 36 | 0115 | 10/22 | float32 | = 0.39 | ? |
 | 37 | 011c | 10/22 | float32 | = 2 | |
-| 38 | 0116 | 10/22 | uint16 | = [100,90] | max Heiz-, max Kühlleistung (siehe Screenshot) |
+| 38 | 0116 | 10/22 | uint16 | = [100,90] | max Heiz-,Kühlleistung (siehe Screenshot) |
 | 39 | 0178 | 10/22 | uint16 | [80,15,29,45,65,65,0] | Energieregler Zeiten (siehe Screenshot) |
 | 40 | 0519 | 10/22 | uint16 | [0,72] | |
 | 41 | 051c | 10/22 | float32 | = 0 | Kompressor Drehzahl ?|
