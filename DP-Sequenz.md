@@ -19,19 +19,19 @@ Folgende Sequenz wurde nach einem Neustart der Wärmepumpe Proxon P1 ermittelt:
 | 15 | 00ed | 10/22 | uint32 | [102 -> 87] | Filter Restlaufzeit [Tage] |
 | 16 | 00ee | 10/22 | float32 | = 0 | |
 | 17 | 03b6 | 11/23 | float32 | = 0 | |
-| 18 | 02d1 | 10/22 | uint32 | [154, 236] | Betriebszeit Stufe2 [h] |
-| 19 | 02d2 | 10/22 | uint32 | [960, 1140] | Betriebszeit Stufe3 [h] |
-| 20 | 02d0 | 10/22 | uint32 | [8,13] | Betriebszeit Stufe1 [h] |
-| 21 | 02d3 | 10/22 | uint32 | [845, 925] | Betriebszeit Stufe4 [h] |
+| 18 | 02d1 | 10/22 | uint32 | [154 -> 236] | Betriebszeit Stufe2 [h] |
+| 19 | 02d2 | 10/22 | uint32 | [960 -> 1140] | Betriebszeit Stufe3 [h] |
+| 20 | 02d0 | 10/22 | uint32 | [8 -> 13] | Betriebszeit Stufe1 [h] |
+| 21 | 02d3 | 10/22 | uint32 | [845 -> 925] | Betriebszeit Stufe4 [h] |
 | 22 | 02d4 | 10/22 | uint32 | = 20 | Betriebszeit Wärmepumpe Heizen [h]|
 | 23 | 02d5 | 10/22 | uint32 | = 658 | Betriebszeit Wärmepumpe Kühlen [h]|
-| 24 | 02d7 | 10/22 | uint32 | [2100, 2402] | Betriebszeit Steuerung [h] |
+| 24 | 02d7 | 10/22 | uint32 | [2100 -> 2402] | Betriebszeit Steuerung [h] |
 | 25 | 02d9 | 10/22 | uint32 | = 1 | Betriebszeit Vorwärme [h]|
 | 26 | 02df | 10/(22) | uint32 | Array28 | Betriebszeiten Len=224 |
 | 27 | 02d6 | 10/22 | uint16 | Arr20[21,1,0..0] | Betriebszeitenliste Steuerung  ?|
 | 28 | 0160 | 10/22 | uint8 | [0,1] | Sommer Bypass Status |
 | 29 | 0168 | 10/22 | uint8 | = 2 | Schieber-Position ? |
-| 30 | 0120 | 10/22 | uint16 | [0->80] | |
+| 30 | 0120 | 10/22 | uint16 | [0 -> 80] | |
 | 31 | 01f5 | 10/22 | uint32 | = 67 | |
 | 32 | 00d2 | 10/22 | float32 | [31,50,70,100] | Lüfterstufen Zuluft (siehe Screenshot)|
 | 33 | 00d3 | 10/22 | float32 | [25,50,70,100] | Lüfterstufen Abluft (siehe Screenshot)|
