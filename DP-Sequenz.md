@@ -33,8 +33,8 @@ Folgende Sequenz wurde nach einem Neustart der Wärmepumpe Proxon P1 ermittelt:
 | 29 | 0168 | 10/22 | uint8 | = 2 | Schieber-Position ? |
 | 30 | 0120 | 10/22 | uint16 | [0->80] | |
 | 31 | 01f5 | 10/22 | uint32 | = 67 | |
-| 32 | 00d2 | 10/22 | float32 | [31,50,70,100] | Lüfterstufen (Zuluft?) |
-| 33 | 00d3 | 10/22 | float32 | [25,50,70,100] | Lüfterstufen (Abluft?) |
+| 32 | 00d2 | 10/22 | float32 | [31,50,70,100] | Lüfterstufen Zuluft |
+| 33 | 00d3 | 10/22 | float32 | [25,50,70,100] | Lüfterstufen Abluft |
 | 34 | 0110 | 10/22 | float32 | = 3 | |
 | 35 | 0105 | 10/22 | float32 | = 0 | |
 | 36 | 0115 | 10/22 | float32 | = 0.39 | ? |
