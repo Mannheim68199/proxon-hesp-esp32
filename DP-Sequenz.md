@@ -13,7 +13,7 @@ Folgende Sequenz wurde nach einem Neustart der Wärmepumpe Proxon P1 ermittelt:
 | 9 | 0208 | 10/22 | uint32 | 32 Bits | |
 | 10 | 01f8 | 11/23 | float32 | = 0 | BDE Status Word ?|
 | 11 | 00e1 | 11/23 | uint16 | [0,1,2,3,4] | Lüfterstufe |
-| 12 | 03b7 | 10/22 | uint16 | Arr10[10 Temp.]/10 | T1-T15 |
+| 12 | 03b7 | 10/22 | uint16 | Arr10[10 Temp.]/10 | [ T1, T7, T4, T3, T5, T6, T8, T12, T10, T13 ] |
 | 13 | 00c9 | 10/22 | float32 | Arr2[1500,2700] | IST Drehzahl (Zuluft?) |
 | 14 | 00d7 | 10/22 | float32 | Arr2[0k,5k,7k,10k ] | Ziel Drehzahl (Zuluft?) |
 | 15 | 00ed | 10/22 | uint32 | [102 -> 87] | Filter Restlaufzeit [Tage] |
