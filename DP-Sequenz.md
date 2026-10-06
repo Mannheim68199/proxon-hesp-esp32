@@ -6,7 +6,7 @@ Folgende Sequenz wurde nach einem Neustart der Wärmepumpe Proxon P1 ermittelt:
 | 2 | 0226 | 11/23 | float32 | (20-> 23,6 ) | IST Temperatur|
 | 3 | 0227 | 11/23 | float32 | (18 > 30 ) | SOLL Temperatur|
 | 4 | 0229 | 11/23 | float32 | 21 | Soll Temperatur ? |
-| 5 | 022a | 11/23 | float32| (18 > 21) | Soll Temperatur ? |
+| 5 | 022a | 11/23 | float32| (18 > 21) | Bits?) |
 | 6 | 020a | 11/23 | uint16 | [0,1,2,3] | Betriebsart |
 | 7 | 022c | 11/23 | uint16 | [0,1] | |
 | 8 | 006c | 10/22 | uint32 | 8 Bits | |
