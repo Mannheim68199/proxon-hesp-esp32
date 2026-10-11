@@ -590,7 +590,7 @@ void rs485SnifferTask(void * parameter) {
     if (timerArmed && !bereitsGesendetOderVetoInDiesemZyklus && (millis() - cycleStartTime >= sendTimeBegin)  && (millis() - cycleStartTime < sendTimeEnd)) {
 
       if (sendRequest && bufferIndex > 4) {
-          if (SEND_AFTER_MATCHING_DP == 1 || (txBuffer[4] == rxBuffer[4] && txBuffer[3] == rxBuffer[3])) {
+          if (SEND_AFTER_MATCHING_DP == 0 || (txBuffer[4] == rxBuffer[4] && txBuffer[3] == rxBuffer[3])) {
             readyToSend = true;
             sendRequest = false;
           }
