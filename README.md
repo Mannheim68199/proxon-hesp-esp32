@@ -37,6 +37,14 @@ Das System benötigt ein **RS485-zu-TTL-Modul mit automatischer Flusssteuerung /
 
 > ⚠️ **WICHTIGER HARDWARE-HINWEIS:** Die +12V-Leitung der Proxon X6 Klemme (X6-2) darf **niemals** direkt an den 3,3V- oder VIN-Pin des ESP32 angeschlossen werden! Zur Versorgung des ESP32 direkt über die Anlage ist ein geeigneter DC-DC-Abwärtsregler (12V auf 5V an den `VIN`/`5V`-Pin) zwingend erforderlich.
 
+
+
+| Hardware | Bezeichnung / Version |
+| :--- | :--- |
+| Hauptplatine |   **LT-ZIM V1.7** von Hermes electronic GmbH Version 1.7 01.2018|
+| PTC-Platine: |   **PCT-Modul 4x V1.2** |
+| Panel: |         **BDE Comfort Version V03.7.9B00**|
+
 ---
 
 ## 🛠️ Software-Konfiguration
