@@ -41,8 +41,8 @@ Das System benötigt ein **RS485-zu-TTL-Modul mit automatischer Flusssteuerung /
 
 | Hardware | Bezeichnung / Version |
 | :--- | :--- |
-| Gerätetyp | **P 1-L** |
-| Hauptplatine |   **LT-ZIM V1.7** von Hermes electronic GmbH Version 1.7 01.2018|
+| Gerätetyp | **P 1-L** installiert Ende 2013 |
+| Hauptplatine |   **LT-ZIM V1.7** von Hermes electronic GmbH Version 1.7 01.2018 ( Austausch Anfang 2026 )|
 | PTC-Platine: |   **PCT-Modul 4x V1.2** |
 | Panel: |         **BDE Comfort Version V03.7.9B00**|
 
