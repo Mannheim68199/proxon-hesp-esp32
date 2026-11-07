@@ -1,28 +1,61 @@
 #ifndef TOOLS_H
 #define TOOLS_H
 
+#include <WiFi.h>
+#include <WebServer.h>
 #include <WebSocketsServer.h>
+#include <PubSubClient.h>
+#include <ArduinoOTA.h>
+#include <ArduinoJson.h>
 #include "FS.h"
 #include "LittleFS.h"
 
+// --- KONFIGURATION ---
+extern const char* ssid;
+extern const char* password;
+extern const char* mqtt_server;
+extern const int   mqtt_port;
+extern const char* topic_raw;
+extern const char* topic_send;
+extern const char* topic_response;
+extern const char* topic_log;
+
 // Ein separater, kleiner Ringpuffer NUR für Texte zur Webseite
-#define LOG_QUEUE_SIZE 10
+#define LOG_QUEUE_SIZE 50
 extern String webLogQueue[LOG_QUEUE_SIZE];
 extern volatile int logIn;
 extern volatile int logOut;
 extern volatile bool logToWeb;
 
-//  ControllerQueries
-#define NUM_CONTROLLER_QUERIES 48
-#define MAX_HESP_QUERY_LEN     14  // Setze hier die exakte Byte-Länge deiner HESP-Queries ein (z.B. 14 Bytes)
-                               //  H0  80  00   <id_lo> <id_hi>   00 00   <len>   <data …>   <crc_lo> <crc_hi>
-#define FILENAME "/masterQueries.bin"
+// Ringpuffer für die MQTT-Entkopplung (erhöht auf 8 Frames bei 20Hz)
+// === ULTRA-SCHNELLE BINÄRE QUEUE ===
+#define QUEUE_SIZE 31
+#define BUFFER_SIZE 128
+#define MAX_FRAME_LEN 256
+#define MAX_HESP_FRAME_SIZE 128
 
-// Struktur für eine Zeile im RAM-Spiegel
+//  ControllerQueries
+#define NUM_CONTROLLER_QUERIES 48  // Anzahl der gesamten periodischen Queries
+#define NUM_UPDATE_QUERIES     10  // Anzahl der Update-Queries
+#define UPDATE_QUERIES_LEN      8  // Byte-Länge der Update-Queries
+#define MAX_HESP_QUERY_LEN     14  // Setze hier die exakte Byte-Länge deiner HESP-Queries ein (z.B. 14 Bytes)
+                                   //  H0  80  00   <id_lo> <id_hi>   00 00   <len>   <data …>   <crc_lo> <crc_hi>
+#define QUERIES_FILENAME "/queries.bin"
+#define LOG_FILENAME "/log.txt"
+
+extern unsigned int reconnectCounter;              // jeder reconnect Versuch wird gezählt, bei > 20 wird ein reboot durchgeführt
+
+extern WiFiClient espClient;
+extern PubSubClient mqttClient;
+extern WebServer server;
+extern WebSocketsServer webSocket;
+
+// Struktur für eine Zeile im RAM-Spiegel für die periodische Query Liste
 struct ControllerQueriesRow {
   uint8_t length;
   uint8_t data[MAX_HESP_QUERY_LEN];
 };
+
 // Der RAM-Spiegel für ultraschnellen Zugriff
 extern ControllerQueriesRow ramBuffer[NUM_CONTROLLER_QUERIES];
 
@@ -101,6 +134,52 @@ const uint8_t controllerQueriesData[][MAX_HESP_QUERY_LEN+1] = {
 extern int currentControllerQueryIndex;
 
 extern WebSocketsServer webSocket;
+
+// NTP-Server für die Uhrzeit
+// Zeitzonen-String für Deutschland (inklusive automatischer Sommer-/Winterzeit)
+// CET = Central European Time, CEST = Central European Summer Time
+extern const char* ntpServer;
+extern const char* timeZone;
+
+// Hilfsfunktion: Wandelt ein einzelnes Hex-Zeichen in eine Zahl um
+byte hexCharToByte(char c);
+char byteToHexChar(byte b);
+String byteToHexString(byte b);
+// Hauptfunktion zum Loggen des gesamten Buffers
+void logRamBuffer(ControllerQueriesRow* buffer, size_t numEntries);
+void removeBufferFile();
+// Hilfsfunktionen zur Ausgabe von Meldungen
+//void writeToFile(String msg, bool newLine);
+String getLogFileContent();
+void logMsg(String msg, bool newLine = false);
+void logMsg(const char* msg, bool newLine = false);
+void handleWebLogQueue();
+void printLocalTime();
+
+// Funktion zur Berechnung der ID aus Byte 4 und 5 (0-indiziert: Byte [3] und [4])
+uint16_t getID(const uint8_t* data);
+// Lädt Daten aus dem Dateisystem oder initialisiert sie neu
+void initStorage();
+// Sichert den aktuellen RAM-Spiegel dauerhaft im Flash
+void saveToFlash();
+// METHODE 1: Ultraschneller Zugriff / Suche über die ID (Gibt Zeilen-Index zurück oder -1)
+int findRowIndexByID(uint16_t targetID);
+// METHODE 2: Einzelne Zeile abändern und dauerhaft speichern
+bool updateRowByID(uint16_t targetID, const uint8_t* newData, uint8_t newLength);
+
+void setup_wifi();
+void reconnect();
+void setupWebServer();
+
+// Definition des Templates:
+template <typename DocType, typename T>
+void updateParamIfPresent(DocType& doc, const char* key, T& targetVar, const String& logPrefix, bool isMultiplier = false, unsigned long multiplier = 1) {
+  if (doc.containsKey(key)) {
+    T newVal = doc[key];
+    targetVar = isMultiplier ? (newVal * multiplier) : newVal;
+    logMsg(logPrefix + " per JSON geändert: " + String(newVal), true);
+  }
+}
 
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -184,29 +263,5 @@ const char update_html[] PROGMEM = R"rawliteral(
 </body>
 </html>
 )rawliteral";
-
-
-// Hilfsfunktion: Wandelt ein einzelnes Hex-Zeichen in eine Zahl um
-byte hexCharToByte(char c);
-// Hilfsfunktionen zur Ausgabe von Meldungen
-void logMsg(String msg, bool newLine = false);
-void logMsg(const char* msg, bool newLine = false);
-void handleWebLogQueue();
-
-// Funktion zur Berechnung der ID aus Byte 4 und 5 (0-indiziert: Byte [3] und [4])
-uint16_t getID(const uint8_t* data);
-
-// Lädt Daten aus dem Dateisystem oder initialisiert sie neu
-void initStorage();
-
-// Sichert den aktuellen RAM-Spiegel dauerhaft im Flash
-void saveToFlash();
-
-// METHODE 1: Ultraschneller Zugriff / Suche über die ID (Gibt Zeilen-Index zurück oder -1)
-int findRowIndexByID(uint16_t targetID);
-
-// METHODE 2: Einzelne Zeile abändern und dauerhaft speichern
-bool updateRowByID(uint16_t targetID, const uint8_t* newData, uint8_t newLength);
-
 
 #endif
