@@ -1,9 +1,9 @@
-# ESP32 Proxon P1 HESP-RS485 Sniffer to MQTT
+# ESP32 Proxon P1 HESP-RS485 Sniffer & Controller to MQTT
 
 Dieses System implementiert ein effizientes Kommunikations-Gateway für den **HESP-Bus** (Proxon P1 Heizungs- und Lüftungsanlagen). 
-Basierend auf einem **ESP32 Dev Module** liest (snifft) das System zyklische Bus-Telegramme (Frage+Antwort) via RS485, wertet diese in Echtzeit aus und stellt die Daten über **MQTT** sowie ein **Live-Webinterface (WebSockets)** bereit.
+Basierend auf einem **ESP32 Dev Module** liest (snifft) das System zyklische Bus-Telegramme (Frage+Antwort) via RS485 mit **19200 Baud**, wertet diese in Echtzeit aus und stellt die Daten über **MQTT** sowie ein **Live-Webinterface (WebSockets)** bereit.
 
-Zusätzlich erlaubt die Firmware das gezielte **Injizieren von Steuerbefehlen (SET/Query)** exakt in einem "stillen" Sende-Zeitfenster direkt auf den Bus, um Parameter der Lüftungsanlage abzufragen oder auch zu verändern. ( was aber (noch?) nicht funktioniert !!! ==>  Vielleicht muß man das Bedienungspanel ausbauen, damit der "alte" Wert nicht immer wieder davon überschrieben wird )
+Zusätzlich erlaubt die Firmware den aktiven **Controller-Modus**: Wird der Bus länger als 250 ms still, übernimmt das ESP32 die Busmeisterschaft und stellt selbst periodische Queries im 100-ms-Takt an die Anlage. So können Parameter der Lüftungsanlage abgefraget **und** verändert werden – ohne dass ein externes Bedienpanel den Wert wieder überschreibt.
 
 Ich nutze eine MariaDB zum Speichern der Daten und Node-Red zum Darstellen der Parameter und deren zeitlichen Verlauf.
 Wie man mit den Daten in MQTT weiter arbeitet, ist aber nicht Thema dieses Projektes. 
@@ -14,8 +14,42 @@ Wie man mit den Daten in MQTT weiter arbeitet, ist aber nicht Thema dieses Proje
 
 Das System nutzt konsequent die **Dual-Core-Architektur** des ESP32, um zeitkritische Bus-Operationen vollständig von netzwerkbedingten Latenzen zu trennen:
 
+### Betriebsmodi (BusMode)
+
+Die Firmware unterscheidet zwei automatische Betriebszustände auf Core 1:
+
+| Modus | Auslöser | Verhalten |
+| :--- | :--- | :--- |
+| **SNIFFER** | Bus aktiv (Daten < 250 ms) | Passives Mithören von Frage/Antwort-Paaren; optionale Injektion von QUERY/SET im Sendezeitfenster |
+| **CONTROLLER** | Bus still > 250 ms | Aktives Bushandling: 48 periodische Queries im exakten 100-ms-Takt, präzises Antwort-Einlesen, Kollisionserkennung, Ändern von Panelwerten ( (Typ 11)) |
+
+Der Übergang zwischen den Modi erfolgt **vollautomatisch**:
+- **SNIFFER → CONTROLLER**: Wenn seit der letzten Bus-Aktivität > 250 ms keine Daten empfangen wurden, wechselt der Task in den Controller-Modus und beginnt bei Query-Index 0.
+- **CONTROLLER → SNIFFER**: Wenn innerhalb der 100-ms-Periode fremde Daten auf dem Bus erkannt werden (Kollision), wird sofort in den Sniffer-Modus zurückgefallen.
+
 ### Ultrafast Binary Queues (Ringpuffer)
-Zur thread-sicheren Kopplung der beiden CPU-Kerne kommen zwei unabhängige, binäre Ringpuffer (`hespBinQueue` und `hespRespQueue`) mit einer festen Größe von `QUEUE_SIZE = 31` zum Einsatz. Core 1 legt die empfangenen Rohdaten oder Antworten schnell binär im RAM ab und inkrementiert die Zeiger (`qIn` / `qRespIn`). Core 0 holt diese im Haupt-Thread asynchron ab (`qOut` / `qRespOut`), wandelt sie performant in HEX-Strings um und sendet sie ins Netzwerk.
+
+Zur thread-sicheren Kopplung der beiden CPU-Kerne kommt ein kombinierter binärer Ringpuffer (`hespCombinedQueue`) mit einer festen Größe von `QUEUE_SIZE = 31` zum Einsatz. Jeder Frame trägt eine `HespMessageFrame`-Struktur:
+
+| Feld | Beschreibung |
+| :--- | :--- |
+| `requestData` / `requestLength` | Die gestellte Frage (oder im Sniffer-Modus: das mitgehörte Telegramm) |
+| `responseData` / `responseLength` | Die gekoppelte Antwort (im Sniffer-Modus: `-1` = keine Kopplung) |
+| `isControllerMode` | `true` = Frage+Antwort sind ein synchrones Paar (Controller); `false` = passives Sniffer-Fragment |
+| `timestamp` | Zeitpunkt des Ereignisses (ms) |
+| `requestToResponseMs` | Latenz zwischen Frage-Ende und erstem Antwort-Byte (nur Controller-Modus) |
+
+Core 1 legt die fertigen Frames binär im RAM ab und inkrementiert `qCombinedIn`. Core 0 holt diese asynchron ab (`qCombinedOut`), wandelt sie in HEX-Strings um und publiziert sie auf MQTT.
+
+### Query-Speicher (LittleFS)
+
+Die 48 periodischen Controller-Queries werden in einem strukturierten RAM-Spiegel (`ramBuffer[NUM_CONTROLLER_QUERIES]`) gehalten und persistent im **LittleFS** unter `/queries.bin` gesichert. Jede Zeile (`ControllerQueriesRow`) enthält:
+
+- `length`: Byte-Länge der Query (12 oder 14 Bytes)
+- `data[MAX_HESP_QUERY_LEN]`: Die HESP-Frame-Daten (Header, DP-ID, Payload, CRC)
+- `changed`: Flag für Änderungen in der WebApp ( nur bei Typ = 11)
+
+Über MQTT lassen sich einzelne Zeilen zur Laufzeit modifizieren (`updateRowByID`) – die Änderung wird sofort im Flash persistiert und im nächsten 100-ms-Zyklus wirksam.
 
 ---
 
@@ -37,14 +71,12 @@ Das System benötigt ein **RS485-zu-TTL-Modul mit automatischer Flusssteuerung /
 
 > ⚠️ **WICHTIGER HARDWARE-HINWEIS:** Die +12V-Leitung der Proxon X6 Klemme (X6-2) darf **niemals** direkt an den 3,3V- oder VIN-Pin des ESP32 angeschlossen werden! Zur Versorgung des ESP32 direkt über die Anlage ist ein geeigneter DC-DC-Abwärtsregler (12V auf 5V an den `VIN`/`5V`-Pin) zwingend erforderlich.
 
-
-
 | Hardware | Bezeichnung / Version |
 | :--- | :--- |
 | Gerätetyp | **P 1-L** installiert Ende 2013 |
-| Hauptplatine |   **LT-ZIM V1.7** von Hermes electronic GmbH Version 1.7 01.2018 ( Austausch Anfang 2026 )|
-| PTC-Platine: |   **PCT-Modul 4x V1.2** |
-| Panel: |         **BDE Comfort Version V03.7.9B00**|
+| Hauptplatine | **LT-ZIM V1.7** von Hermes electronic GmbH Version 1.7 01.2018 (Austausch Anfang 2026) |
+| PTC-Platine: | **PCT-Modul 4x V1.2** |
+| Panel: | **BDE Comfort Version V03.7.9B00** |
 
 ---
 
@@ -52,7 +84,7 @@ Das System benötigt ein **RS485-zu-TTL-Modul mit automatischer Flusssteuerung /
 
 Vor dem Kompilieren müssen die Netzwerk- und MQTT-Zugangsdaten direkt im Quellcode angepasst werden:
 
-```cpp
+```
 // --- WLAN Parameter ---
 const char* ssid = "DEINE_SSID";
 const char* password = "DEIN_WLAN_PASSWORT";
@@ -62,164 +94,296 @@ const char* mqtt_server = "DEINE MQTT_SERVER_ID";
 const int   mqtt_port = 1883;
 ```
 
-### Verwendete Bibliotheken
+
+## Verwendete Bibliotheken
+
+Die Firmware setzt auf bewährte Standard-Bibliotheken des ESP32-Arduino-Ökosystems:
 Die Firmware setzt auf bewährte Standard-Bibliotheken des ESP32-Arduino-Ökosystems:
 * `WiFi.h` (Integriert, zur WLAN-Verbindung)
 * `WebServer.h` & `WebSocketsServer.h` (Für das Web-Dashboard und Live-Streaming)
 * `PubSubClient.h` (Für die MQTT-Kommunikation – Puffer wird im Code dynamisch auf 2048 Bytes erweitert)
 * `ArduinoJson.h` (Ab Version 6/7, zur Verarbeitung komplexer Laufzeitparameter)
 * `ArduinoOTA.h` (Integrierte Update-Schnittstelle)
+* `LittleFS.h` (Persistenter Query-Speicher und Log-Datei auf dem Flash)
 
 ---
 
+
 ## 📡 MQTT-Schnittstelle & API-Spezifikation
 
-Das Gateway kommuniziert ereignisbasiert und bidirektional über drei dedizierte MQTT-Topics.
+Das Gateway kommuniziert ereignisbasiert und bidirektional über vier dedizierte MQTT-Topics.
 
 ### 1. Gesendete Daten (Publish)
 * **`rs485/sniffer/raw`**: Core 0 konvertiert die aus dem Ringpuffer gelesenen Rohdaten in performant vorreservierte (`hexPayload.reserve()`) HEX-Strings und pusht sie auf dieses Topic.
 * **`rs485/sniffer/response`**: Hierhin sendet das System die dedizierten Antworten der Anlage auf abgesetzte Befehle.
+* **`rs485/sniffer/log`**: 	Textbasierte System-Logs (Diagnose, Moduswechsel, Fehlermeldungen, Statistik).
 
 ### 2. Empfangene Steuerbefehle (Subscribe)
 * **`rs485/sniffer/send`**: Dieses Topic verarbeitet zwei unterschiedliche Payload-Typen (wird im `mqttCallback` automatisch unterschieden):
 
+
 #### Typ A: Befehls-Injektion (HEX-String)
-Wird ein reiner HEX-String empfangen, konvertiert die Firmware diesen Byte für Byte über die Hilfsfunktion `hexCharToByte` und sichert das Ergebnis im globalen `txBuffer`. Das Flag `readyToSend = true` signalisiert Core 1, dass das Paket in der nächsten Buspause injiziert werden soll.
+Wird ein reiner HEX-String empfangen, konvertiert die Firmware diesen Byte für Byte über die Hilfsfunktion `hexCharToByte` und sichert das Ergebnis im globalen `txBuffer`. Verhalten je nach aktuellem BusModus:
+
+|Modus | Aktion |
+| :--- | :--- |
+|SNIFFER |	Das Paket wird in der nächsten Buspause injiziert (QUERY einmalig, SET wiederholt bis SET_REPEAT_TIME abgelaufen). Die DP-ID wird zur Laufzeit im Query-Buffer aktualisiert (updateRowByID), sodass der Controller-Modus den neuen Wert im nächsten Zyklus übernimmt.|
+|CONTROLLER |	Die entsprechende Zeile im ramBuffer wird direkt überschrieben und im Flash gesichert. Ab dem nächsten 100-ms-Takt wird die modifizierte Query aktiv gestellt.|
+
+
+    Hinweis: Bei SET-Befehlen (Header 0x11) prüft der Sniffer-Modus optional, ob der neue Wert tatsächlich vom gespeicherten abweicht, bevor die Injektion startet (Stichwort: Bedienpanel überschreibt nicht mehr).
 
 #### Typ B: Parameter-Konfiguration via JSON
-Beginnt die Nachricht mit einer geschweiften Klammer `{` (ASCII 123), wird sie als JSON geparst. Folgende Parameter lassen sich zur Laufzeit verändern:
+
+Beginnt die Nachricht mit einer geschweiften Klammer { (ASCII 123), wird sie als JSON geparst. Folgende Parameter lassen sich zur Laufzeit verändern:
 
 ```json
 {
-  "sendTimeBegin": 30,       // msec
-  "sendTimeEnd": 33,         // msec
-  "SET_REPEAT_TIME": 1800,   // msec
-  "PACKET_TIMEOUT": 12,      // msec
-  "LONG_ANSWER_MIN": 64      // bytes
+  "sendTimeBegin": 30,          // msec (Sniffer-Modus)
+  "sendTimeEnd": 33,            // msec (Sniffer-Modus)
+  "SET_REPEAT_TIME": 100,       // msec (Sniffer-Modus)
+  "PACKET_TIMEOUT": 12,         // msec (Sniffer-Modus)
+  "LONG_ANSWER_MIN": 64,        // msec (Sniffer-Modus)
+  "SEND_AFTER_MATCHING_DP": 1,  // msec (Sniffer-Modus)
+  "SHOW_DP_LIST_COUNTER": 5,    // Anzahl
+  "ShowSETChanges": 3,          // Anzahl
+  "ShowStatistikMinutes": 1     // min
 }
 ```
 
-* **`sendTimeBegin`** / **`sendTimeEnd`**: Definiert das erlaubte Sendezeitfenster in Millisekunden nach der erkannten Bus-Stille.
-* **`SET_REPEAT_TIME`**: Bestimmt die Dauer in Millisekunden, über die ein SET-Befehl zyklisch wiederholt an den Bus gefeuert wird.
-* **`PACKET_TIMEOUT`**: definiert die Bus-Stille in [msec], ein Wert >= 12msec führt dazu, dass Frage und Antwort in einem Zyklus als HEX-String gelesen werden, Werte < 12msec lösen Frage und Antwort auf
-*     (dadurch gehen wohl auch Werte verloren, denn die BUS Frequenz in der Statistik geht nicht auf exakt 20 Hz sondern auf ca 19,6 Hz )
-* **`LONG_ANSWER_MIN`**: definiert ab welcher byte-Länge eine Antwort *lang* ist - und eine eigene QUERY/SET im Zyklus verhindert
-* **`setDefaultValues`**: Übergibt man diesen Key im JSON, setzt das Gateway alle Timing-Variablen sofort auf die sicheren Standardwerte zurück (`30ms` / `33ms` / `1500ms` / `12` / `64` ).
+* **`sendTimeBegin`**:	Start des erlaubten Sendezeitfensters nach Zyklus-Start (Sniffer-Modus)
+* **`sendTimeEnd`**		Ende des Sendezeitfensters
+* **`SET_REPEAT_TIME`** Dauer, über die ein SET-Befehl zyklisch wiederholt wird, bevor die Injektion stoppt
+* **`PACKET_TIMEOUT`** Bus-Stille, die ein Telegramm-Ende signalisiert. ≥ 12 ms: Frage+Antwort in einem Frame; < 12 ms: getrennt
+* **`LONG_ANSWER_MIN`**	Ab dieser Länge gilt eine Antwort als *lang* und verhindert eine eigene QUERY/SET im selben Zyklus
+* **`setDefaultValues`**: Übergibt man diesen Key im JSON, setzt das Gateway alle Timing-Variablen sofort auf die sicheren Standardwerte zurück (`30ms` / `33ms` / `100ms` / `12` / `64` ....
+* **`SEND_AFTER_MATCHING_DP`**: 1: Injektion nur, wenn die DP-ID (Byte 3+4) des laufenden Bus-Traffic mit der zu sendenden übereinstimmt. 0: Immer senden
+* **`SHOW_DP_LIST_COUNTER`**: Anzahl der Zyklen, in denen die DP-Liste im Log ausgegeben wird (Start bei DP 032e)
+* **`ShowSETChanges`**:	Anzahl der SET-Änderungen, die im Log mit altem/neuem Wert angezeigt werden
+* **`ShowStatistikMinutes`**:Intervall der Statistik-Ausgabe (intern × 60000 → ms). 0 deaktiviert|
 
----
+#### Typ C: Steuerbefehle (JSON-Aktionen)
+
+
+* **`setDefaultValues`**: 	Setzt alle Timing- und Display-Variablen auf die sicheren Standardwerte zurück (30/33/100/12/64/1/0/0/1min)
+* **`getQueries`**: 	Gibt die vollständige Query-Tabelle (48 Zeilen) als HEX-Listing im Log aus
+* **`removeBufferFile`**: 	Löscht /queries.bin vom LittleFS und initialisiert die Query-Tabelle neu aus der Kompilierzeit-Konstante controllerQueriesData
+
+
+## 🎛️ Controller-Modus im Detail
+Automatik-Wechsel & 100-ms-Takt
+
+
+
+```
+Bus still > 250 ms ──►  MODE_CONTROLLER
+                            │
+                            ▼
+              ┌──────────────────────────────────┐
+              │  100 ms Periode (vTaskDelayUntil)│
+              │                                  │
+              │  ① Query aus ramBuffer lesen    │
+              │  ② Serial2.write() → Bus        │
+              │  ③ Antwort einlesen (≤ 95 ms)   │
+              │     ├─ First-Byte-Timeout: 22 ms│
+              │     └─ Inter-Byte-Timeout: 4 ms │
+              │  ④ Frame in Queue (Req+Resp)    │
+              │  ⑤ Kollisions-Check (~90 ms)    │
+              │  ⑥ Nächster Query-Index         │
+              └──────────────────────────────────┘
+                            │
+                    Kollision erkannt?
+                            │── ja ──►  MODE_SNIFFER
+                            │
+                            └── nein ──►  nächste Periode
+```
+
+### Timing-Konstanten (Controller)
+
+|Konstante |	Wert |	Bedeutung|
+| :--- | :--- | :--- |
+|MAX_REPLY_WINDOW |	95 ms |	Maximales Gesamtfenster für die Antwort innerhalb der 100-ms-Periode|
+|FIRST_BYTE_TIMEOUT |	22 ms |	Maximales Warten auf das erste Antwort-Byte|
+|INTER_BYTE_TIMEOUT |	4 ms |	Stille zwischen Bytes → Telegramm beendet|
+|Periode |	100 ms |	Exakt gehalten durch vTaskDelayUntil (kompensiert Rechenzeit automatisch)|
+
+### Query-Tabelle (Auszug)
+
+Die 48 Queries sind als controllerQueriesData in tools.h hartkodiert und werden beim ersten Start nach /queries.bin geschrieben. Beispiele:
+
+|Index |	DP-ID |	Typ |	Wert |	Bedeutung|
+| :--- | :--- | :--- | :--- | :--- |
+|0 |	032e |	QUERY (10) |	2 |	Status/Info|
+|1 |	0226 |	SET (11) 	|22.37 °C |	IST-Temperatur|
+|2 |	0227 |	SET (11) 	|22.0 °C 	|SOLL-Temperatur|
+|3 |	0229 |	SET (11) 	|21.0 °C 	|Soll-Temp (alt)|
+|5 |	020A |	SET (11) 	|2 	|Betriebsart|
+|10| 	00e1 |	SET (11) 	|3 	|Lüfterstufe [0–4]|
+|45| 	0191 |	SET (11) 	|1 	|– (Antwort-Pause nur 4 ms)|
+
+    Die Typen 0x10 (QUERY) und 0x11 (SET) stehen im Low-Nibble des Header-Bytes. Queries mit Typ 0x10 sind read-only (Wert fest), 0x11-Einträge sind schreibbar.
+
+## Antwort-Kopplung & Latenzmessung
+
+Im Controller-Modus wird exakt gemessen, wie viele Millisekunden zwischen dem Ende der gesendeten Frage und dem ersten empfangenen Antwort-Byte liegen (requestToResponseMs). Dieser Wert ist im Frame enthalten und steht Core 0 für das MQTT-Publishing zur Verfügung – ideal zur Überwachung der Bus-Gesundheit.
+SET-Wiederholung & Stopp-Logik (Sniffer-Modus)
+
+Im Sniffer-Modus funktioniert die SET-Injektion wie folgt:
+
+```
+    Erster erfolgreicher Sendevorgang startet die Stoppuhr (injektionStartZeit).
+    In jedem folgenden 100-ms-Zyklus wird der SET-Befehl erneut injiziert.
+    Nach Ablauf von SET_REPEAT_TIME wird die Injektion automatisch beendet.
+    Ein neues SET über MQTT während des Feuerns setzt die Stoppuhr zurück.
+```
+
+Diese Logik verhindert, dass ein externes Bedienpanel den Wert zwischen den Wiederholungen überschreibt.
 
 ## 💻 Webinterface & Sicherer OTA-Prozess
 
-Das System stellt eine minimalistische, aber hochperformante Web-Oberfläche zur Verfügung. Sie ist vollständig im Flash-Speicher (`PROGMEM`) hinterlegt.
+Das System stellt eine minimalistische, aber hochperformante Web-Oberfläche zur Verfügung. Sie ist vollständig im Flash-Speicher (PROGMEM) hinterlegt.
 
 ### Hauptseite (`http://<esp32-ip>/`)
-* **Live-Log:** Zeigt den Bus-Verkehr hexadezimal in Echtzeit über eine permanente WebSocket-Verbindung (Port 81).
-* **Traffic Control:** Bietet Buttons zum Pausieren (`Log: AUS`) oder Leeren der Ansicht, um den Browser-RAM bei hoher Bus-Last zu entlasten.
+
+   - **Live-Log**: Zeigt den Bus-Verkehr (Sniffer + Controller) in Echtzeit über eine permanente WebSocket-Verbindung (Port 81).
+   - **Traffic Control**: Bietet Buttons zum Pausieren (`Log: AUS`) oder Leeren der Ansicht, um den Browser-RAM bei hoher Bus-Last zu entlasten.
+
+### Log-Export (`http://<esp32-ip>/getLog`)
+
+    Gibt den aktuellen Inhalt der Web-Log-Queue als text/plain zurück (nützlich für curl oder Skripte).
 
 ### Zweistufiger Firmware-Update-Prozess (`http://<esp32-ip>/update`)
-Um unvollständige Flash-Vorgänge oder hängende Browser-Anfragen nach einem Reboot zu verhindern, nutzt der Webserver eine ausgeklügelte dreistufige Logik beim Einspielen einer neuen `.bin`-Datei:
-1. **Browser-Beruhigung:** Nach erfolgreichem Empfang der Firmware sendet der ESP32 sofort ein sauberes HTML-Dokument mit einem HTTP-Refresh-Header (`content='5;url=/'`) an den Client zurück.
-2. **Verbindungs-Abbau:** Der ESP32 wartet kurz per `delay(500)` und schließt die TCP-Client-Verbindung mittels `server.client().stop()` aktiv von sich aus. Dadurch weiß der Browser, dass die Transaktion beendet ist.
-3. **Hard Reboot:** Erst nachdem die Netzwerk-Pakete sicher den Netzwerkstack verlassen haben, triggert das Gateway über `ESP.restart()` den kontrollierten Neustart der Hardware.
 
----
+Um unvollständige Flash-Vorgänge oder hängende Browser-Anfragen nach einem Reboot zu verhindern, nutzt der Webserver eine ausgeklügelte dreistufige Logik beim Einspielen einer neuen .bin-Datei:
+    - **Browser-Beruhigung**: Nach erfolgreichem Empfang der Firmware sendet der ESP32 sofort ein sauberes HTML-Dokument mit einem HTTP-Refresh-Header (content='5;url=/') an den Client zurück.
+    - **Verbindungs-Abbau**: Der ESP32 wartet kurz per delay(500) und schließt die TCP-Client-Verbindung mittels server.client().stop() aktiv von sich aus.
+    - **Hard Reboot**: Erst nachdem die Netzwerk-Pakete sicher den Netzwerkstack verlassen haben, triggert das Gateway über ESP.restart() den kontrollierten Neustart der Hardware.
 
-## ⏱️ Zeitkritische Logik & Core-1 Bus Task
+## ⏱️ Zeitkritische Logik & Core-1 Bus-Task
 
-Die Kommunikation auf dem HESP-Bus erfordert exakte zeitliche Koordination. Der Sende-Task auf Core 1 arbeitet autark in einer permanenten Schleife (`for(;;)`):
+Die Kommunikation auf dem HESP-Bus (19200 Baud, 8N1) erfordert exakte zeitliche Koordination. Der Sende-Task auf Core 1 arbeitet autark in einer permanenten Schleife (for(;;)) und delegiert je nach currentBusMode:
 
-```text
-Bus-Aktivität (Master/Slave) ===[ DATA FRAME ]===|
+### Sniffer-Modus – Sendezeitfenster
+
+```
+        Bus-Aktivität (Master/Slave) ===[ DATA FRAME ]===|
                                                  |
                                                  v
-                                        Stille detektiert (>10ms Initial / >12ms PACKET_TIMEOUT)
+                                        Stille detektiert (> PACKET_TIMEOUT ms)
                                                  |
                                                  v
-                                        Sende-Fenster öffnet (z.B. +30ms / sendTimeBegin)
-                                                 |---> [COLLISION / VETO CHECK via digitalRead]
-                                                 |---> [EIGENES PARAMETER-SET INJIZIEREN]
+                                        Sende-Fenster öffnet (sendTimeBegin, z.B. +30ms)
+                                                 |---> [COLLISION / VETO CHECK]
+                                                 |---> [QUERY / SET INJIZIEREN]
                                                  v
-                                        Sende-Fenster schließt (z.B. +33ms / sendTimeEnd)
+                                        Sende-Fenster schließt (sendTimeEnd, z.B. +33ms)
 ```
 
-### Der Bus-Zyklus im Detail
+#### Der Sniffer-Zyklus im Detail
 
-1. **Schritt 1: Starr Bus-Empfang & Zyklus-Erkennung**
-   Der Task überwacht `Serial2`. Erkennt er nach einer Bus-Ruhepause von mehr als `10 ms` das erste eintreffende Byte, speichert er den exakten Zeitstempel in `cycleStartTime` und schaltet den Sende-Timer scharf (`timerArmed = true`).
-2. **Schritt 2: Normales Sammel-Ende**
-   Verstreichen nach dem letzten Byte mehr als `PACKET_TIMEOUT` (12 ms) oder überschreitet die Zyklusdauer `98 ms`, gilt das Telegramm als beendet. Es wird atomar in den Ringpuffer `hespBinQueue` kopiert und für den MQTT-Versand auf Core 0 freigegeben.
-3. **Schritt 3: Kollisionsschutz & Veto-Logik**
-   Bevor das Gateway im Zeitfenster (`sendTimeBegin` bis `sendTimeEnd`) Daten sendet, wird ein hardwarenaher **Belegungs-Check** durchgeführt:
-   ```cpp
-   if (digitalRead(RX2_PIN) == LOW || Serial2.available() > 0)
-   ```
-   Zieht eine andere Komponente (z.B. die Anlage für eine "lange Antwort") den RX-Pin genau in diesem Moment auf `LOW` (Startbit) oder befinden sich bereits ungelesene Bytes im Puffer, legt das Gateway ein **Veto** ein. Das Senden wird für diesen 100ms-Takt sofort blockiert, um Bus-Kollisionen mathematisch auszuschließen.
-4. **Schritt 4: Injektion & Echo-Löschung**
-   Ist der Bus frei, wird der Puffer über `Serial2.write()` physisch übertragen. Nach einem `Serial2.flush()` wartet das System `300 Mikrosekunden` auf die Richtungsumschaltung des RS485-Transceivers und löscht über eine `while`-Schleife die lokalen Echos (*Tx-Self-Hear*), damit sich das Gateway nicht selbst snifft.
-5. **Schritt 5: Sub-Bus-Antwortmodus**
-   Nach dem Senden schaltet das System in den Modus `warteAufAntwort = true`. Eintreffende Bytes werden nun isoliert im separaten `rxSubBuffer` gesammelt, um die direkte Antwort der Anlage präzise herauszufiltern.
-6. **Schritt 6: Automatische Timer-Abschaltung**
-   Handelt es sich bei die Injektion um einen `SET`-Befehl (`txType == 1`), prüft das System die abgelaufene Zeit seit dem ersten Senden. Nach Erreichen der `SET_REPEAT_TIME` (z.B. 1500 ms) wird die Injektions-Schleife vollautomatisch deaktiviert, um den Bus wieder freizugeben.
+    Bus-Empfang & Zyklus-Erkennung: Erkennt der Task nach einer Ruhepause > PACKET_TIMEOUT das erste Byte, startet der Zyklus-Timer.
+    Sammel-Ende: Nach PACKET_TIMEOUT Stille oder Zyklus-Ende wird das Telegramm in die kombinierte Queue kopiert.
+    Kollisionsschutz (Veto): Serial2.available() > 0 → Veto, kein Senden in diesem Takt.
+    DP-Matching (optional): Bei SEND_AFTER_MATCHING_DP = 1 wird nur gesendet, wenn Byte 3+4 des laufenden Traffic die gleiche DP-ID tragen.
+    Injektion & Echo-Löschung: Serial2.write() → flush() → Tx-Self-Hear löschen.
+    Sub-Bus-Antwort: Antwort-Bytes werden isoliert in rxSubBuffer gesammelt (Timeout: 2 ms nach letztem Byte / 20 ms ohne Daten).
+    SET-Timer: Wiederholtes Feuern bis SET_REPEAT_TIME abgelaufen.
 
----
+### Controller-Modus – Aktive Busmeisterschaft
+
+Siehe oben unter Controller-Modus im Detail.
+
+
 
 ## 📈 Status- und Performance-Metriken
 
-Jede minute (`60000 ms`) friert Core 0 die Zähler kurzzeitig ein, berechnet wichtige Systemmetriken und gibt eine strukturierte Diagnose im USB-Terminal (`Serial0`) aus. Dies dient der langfristigen Stabilitätskontrolle im Feld:
+Core 0 friert in einem konfigurierbaren Intervall (Standard: 1 Minute, via `ShowStatistikMinutes`) die Zähler kurzzeitig ein und gibt eine strukturierte Diagnose im USB-Terminal (Serial0) sowie per MQTT auf `rs485/sniffer/log` aus:
 
 ```text
-========================================
-   HESP-BUS STATISTIK (Letzte Minute)
-----------------------------------------
- Gelesene Nachrichten (RX): 602
- Gesendete Nachrichten MQTT: 602
- Geschriebene Nachrichten (TX): 4
- Gesendete Antworten (RX): 4
- Bus-Frequenz gesamt:        ~10.10 Hz
- Bus-Qualität gesamt:        ~100.00 %
-========================================
+    ========================================
+        11.11.2026 10:53:00
+        HESP-BUS STATISTIK (1 Min)
+    ----------------------------------------
+        read/send Msg  (MQTT): 600/600
+        query/response (TX/RX): 600/600
+        Bus-Freq./Quality:    ~10.00 Hz / 100 %
+    ========================================
+        Free storage space: 287 kB
 ```
 
+* **`read/send Msg (MQTT)`**: Gelesene Frames vs. erfolgreich per MQTT publiziert
+* **`query/response (TX/RX)`**: Eigene gestellte Queries vs. erhaltene Antworten (Controller-Modus)
 * **Bus-Frequenz:** Errechnet die durchschnittliche Paketanzahl pro Sekunde (Erwartungswert: 10 Hz ).
 * **Bus-Qualität:** Setzt die erfolgreich per MQTT abgesetzten Pakete in Relation zu den gelesenen Telegrammen. Ein Wert von 100 % signalisiert eine fehlerfreie, latenzfreie Verarbeitung auf Core 0 ohne Queue-Überläufe.
+* **`Free storage`**:	Verbleibender Heap-Speicher in kB
 
----
+
+## 📁 Persistenter Speicher (LittleFS)
+
+|Datei |	Zweck|
+| :--- | :--- |
+|/queries.bin |	48 × ControllerQueriesRow (je 16 Bytes) = 768 Bytes. Enthält die aktuelle Query-Tabelle. Wird bei jeder updateRowByID sofort geschrieben.|
+|/log.txt |	Laufendes Text-Log (aktuell als Platzhalter, für zukünftige Erweiterungen).|
+
+    ⚠️ Ein LittleFS.format() löscht beide Dateien. Die Query-Tabelle wird beim nächsten Boot aus der hartkodierten Konstante controllerQueriesData neu initialisiert.
+
 
 ## 🚀 Inbetriebnahme & Troubleshooting
 
-1. **Kompilierung**:
-   
-     Stelle in der Arduino IDE sicher, dass das ESP32 Dev Module ausgewählt ist und der serielle Monitor auf 115200 Baud steht.
-   
-3. **Diagnose beim Booten**:
-   
-   Achte auf die Meldung >>> ERFOLG: RS485-Task erfolgreich auf Core 1 gestartet! <<<.
-   Erscheint stattdessen ein Fehlercode, war der Heap-Speicher für den 8KB Task-Stack unzureichend.
-   
-5. **Fehlersuche bei fehlendem Traffic**:
-   
-     1. Falls das Live-Log im Webinterface oder Terminal komplett leer bleibt, tausche die A- und B-Leitungen des RS485-Moduls (häufigste Ursache bei RS485-Inbetriebnahmen).
-     2. Überprüfe mit einem Multimeter, ob der GND des ESP32 eine stabile, niederohmige Verbindung zum GND der Proxon-Platine (X6-1) aufweist.
-   Ohne gemeinsamen GND führen Gleichtaktstörungen zu korrupten Datenpaketen.
+  1. **Kompilierung**:
+    
+    Stelle in der Arduino IDE sicher, dass das ESP32 Dev Module ausgewählt ist (Board → ESP32SDev Module) und der serielle Monitor auf 115200 Baud steht.
+    Erster Start / LittleFS-Initialisierung:
+    Beim allerersten Boot wird automatisch /queries.bin mit den 48 Standard-Queries geschrieben. In der Konsole erscheint:
+    Keine bestehenden Query-Daten gefunden. Schreibe Initialdaten...
+    
+  2. **Achte auf die Meldung**:
+
+    >>> ERFOLG: RS485-Task erfolgreich auf Core 1 gestartet! <<<
+
+    Erscheint stattdessen ein Fehlercode, war der Heap-Speicher für den 8 KB Task-Stack unzureichend.
+
+    
+  3. **Moduswechsel beobachten**:
+
+    Im Live-Log (Web oder MQTT rs485/sniffer/log) erscheint bei jedem Wechsel:
+
+    >> Bus still (>250ms) -> Wechsel in den AKTIVEN MASTER-Modus
+    oder:
+    >> Fremddaten in der Restperiode erkannt. Zurück zu Sniffer.
+
+  4. **Fehlersuche bei fehlendem Traffic**:
+
+    Falls das Live-Log im Webinterface oder Terminal komplett leer bleibt, tausche die A- und B-Leitungen des RS485-Moduls (häufigste Ursache bei RS485-Inbetriebnahmen).
+    Überprüfe mit einem Multimeter, ob der GND des ESP32 eine stabile, niederohmige Verbindung zum GND der Proxon-Platine (X6-1) aufweist. Ohne gemeinsamen GND führen Gleichtaktstörungen zu korrupten Datenpaketen.
+    Im Controller-Modus: Falls keine Antwort zur Frage: XXXX im Log erscheint, ist die Anlage entweder nicht im Bus oder die DP-ID unbekannt.
+
+    Query-Tabelle zurücksetzen:
+
+    Falls durch fehlerhafte SET-Befehle die Query-Tabelle korrupt ist, sende per MQTT:
+
+    { "removeBufferFile": true }
+
+    Das ESP32 löscht /queries.bin und initialisiert die Standard-Queries neu.
 
 
-## Referenzen 
 
-1. Das gesamte Projekt basiert auf der Arbeit von Markus Mauch und seinen Beschreibungen unter:
+## Referenzen
 
-- [Markus Mauch's HESP documentation](https://markusmauch.github.io/proxon-hesp/)
-- [Documentation repository](https://github.com/markusmauch/proxon-hesp)
 
-2. Der Text und der Code wurden zu ca 95% von Google erstellt
-   
-3. Ein ähnliches Projekt mit Anbindung an Homeassistant ist unter [https://github.com/DNier/proxon-hesp-homeassistant] zu finden
+    1. Das gesamte Projekt basiert auf der Arbeit von Markus Mauch und seinen Beschreibungen unter:
+
+    - [Markus Mauch's HESP documentation](https://markusmauch.github.io/proxon-hesp/)
+    - [Documentation repository](https://github.com/markusmauch/proxon-hesp)
+
+    2. Der Text und der Code wurden zu ca. 95 % von Google erstellt.
+
+    3. Ein ähnliches Projekt mit Anbindung an Home Assistant ist unter [https://github.com/DNier/proxon-hesp-homeassistant] zu finden.
 
 
 ## Geltungsbereich
 
-Alle Angaben stammen aus Messungen an einer einzelnen Anlage, erhoben ohne Beteiligung
-des Herstellers. Nachbau auf eigene Verantwortung; Eingriffe können Gewährleistung oder
-Garantie berühren. Es werden keine geschützten Hersteller-Unterlagen wiedergegeben.
+Alle Angaben stammen aus Messungen an einer einzelnen Anlage, erhoben ohne Beteiligung des Herstellers. Nachbau auf eigene Verantwortung; Eingriffe können Gewährleistung oder Garantie berühren. Es werden keine geschützten Hersteller-Unterlagen wiedergegeben.
 
 ## Lizenz & Marken
 
@@ -227,3 +391,5 @@ Inhalte unter [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.de) (
 [`LICENSE`](LICENSE)). Unabhängiges Projekt, **nicht** mit Zimmermann Lüftungs- und
 Wärmesysteme GmbH & Co. KG affiliiert; „PROXON", „Zimmermann" und weitere genannte Namen
 sind Marken ihrer jeweiligen Inhaber und werden beschreibend verwendet.
+
+
